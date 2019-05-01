@@ -43,7 +43,7 @@
     let mapFunctions = drawAxes(axesLimits, "fertility_rate", "life_expectancy");
 
     // plot data as points and add tooltip functionality
-    plotData(mapFunctions, year);
+    plotData(mapFunctions);
 
     // draw title and axes labels
     makeLabels();
@@ -76,10 +76,10 @@
     let pop_data = data.map((row) => +row["pop_mlns"]);
     let pop_limits = d3.extent(pop_data);
     
-    // need locations for dropdown
+    // need years for dropdown
     let years =  data.map((row) => row["time"]);
     
-    // get unique locations
+    // get unique years
     let uniq_yrs = [... new Set(years)];
 
     // make size scaling function for population
@@ -106,51 +106,46 @@
         .attr('r', (d) => pop_map_func(d["pop_mlns"]))
         .attr('fill', "#4286f4")
         // add tooltip functionality to points
-        .on("mouseover", (d) => {
-          div.transition()
-            .duration(200)
-            .style("opacity", 1);
-          div.html("Country Name: " + "<span>" + getKey(d.location) + "</span>" + 
-                   "<br/>" + "Year: " + "<span>" + d.time + "</span>" +
-                   "<br/>" + "Life Expectancy: " + "<span>" + d.life_expectancy + "</span>" + 
-                   "<br/>" + "Fertility Rate: " + "<span>" + d.fertility_rate + "</span>" +    
-                   "<br/>" + "Population: " + "<span>" + numberWithCommas(d["pop_mlns"]*1000000 + "</span>" 
-                   ))
-            .style("left", (d3.event.pageX) + "px")
-            .style("top", (d3.event.pageY - 28) + "px");
-          svgContainer.selectAll("circle")
-            .transition()
-            .filter((n) => n.location != d.location)
-            .attr("r", pop_map_func(d["pop_mlns"]))
-            .attr("cx", (xMap(d)))
-            .attr("cy", (yMap(d)))
-            .attr("pointer-events", "none");
-        })
-        .on("mouseout", (d) => {
-          div.transition()
-            .duration(500)
-            .style("opacity", 0);
-          svgContainer.selectAll("circle")
-            .transition()
-            .attr("cx", (xMap))
-            .attr("cy", (yMap))
-            .attr("pointer-events", "any")
-            .attr('r', (d) => pop_map_func(d["pop_mlns"]));
-        });
+        .on("mouseover", (d) => mouseIn(d, div, pop_map_func, xMap, yMap))
+        .on("mouseout", (d) => mouseOut(d, div, pop_map_func, xMap, yMap))
     var dropdown = d3.select("#drop")
         .insert("select", "svg")
         .on("change", function() {
             let val = d3.select(this).property("value")
             // update data and change position of plotted points
             filterByYear(val)
-            svgContainer.selectAll("circle")
-                .data(currData)
-                .transition()
-                .duration(400)
+
+            // rescale population data 
+            pop_data = currData.map((row) => +row["pop_mlns"]);
+            pop_limits = d3.extent(pop_data);
+            let circles = svgContainer.selectAll("circle").data(currData)
+            
+            // transition points already made to new positions
+            circles.transition().duration(400)
+                .attr('cx', xMap)
+                .attr('cy', yMap)
                 .attr('r', (d) => pop_map_func(d["pop_mlns"]))
-                .attr("cx", xMap)
-                .attr("cy", yMap);
+                .attr('fill', "#4286f4")
+            
+            // add points that weren't already present
+            circles.enter()
+                .append('circle')
+                    .attr('r', 0)
+                    .attr('fill', "#4286f4")
+                    .on("mouseover", (d) => mouseIn(d, div, pop_map_func, xMap, yMap))
+                    .on("mouseout", (d) => mouseOut(d, div, pop_map_func, xMap, yMap))
+                    .transition().duration(400)
+                    .attr('cx', xMap)
+                    .attr('cy', yMap)
+                    .attr('r', (d) => pop_map_func(d["pop_mlns"]))
+            
+            // remove points not in new data
+            circles.exit()
+                .transition().duration(400)
+                .attr('r',0)
+                .remove()
         });
+    // add dropdown options
     dropdown.selectAll("option")
         .data(uniq_yrs)
         .enter()
@@ -246,4 +241,40 @@
       return null;
   }
 
+// mouseIn includes the logic that drives what happens when a user mouses over
+// a data point and uses the passed parameters to generate a tooltip
+function mouseIn(d, div, pop_map_func, xMap, yMap) {
+    div.transition()
+            .duration(200)
+            .style("opacity", 1);
+          div.html("Country Name: " + "<span>" + getKey(d.location) + "</span>" + 
+                   "<br/>" + "Year: " + "<span>" + d.time + "</span>" +
+                   "<br/>" + "Life Expectancy: " + "<span>" + d.life_expectancy + "</span>" + 
+                   "<br/>" + "Fertility Rate: " + "<span>" + d.fertility_rate + "</span>" +    
+                   "<br/>" + "Population: " + "<span>" + numberWithCommas(d["pop_mlns"]*1000000 + "</span>" 
+                   ))
+            .style("left", (d3.event.pageX) + "px")
+            .style("top", (d3.event.pageY - 28) + "px");
+          svgContainer.selectAll("circle")
+            .transition()
+            .filter((n) => n.location != d.location)
+            .attr("r", pop_map_func(d["pop_mlns"]))
+            .attr("cx", (xMap(d)))
+            .attr("cy", (yMap(d)))
+            .attr("pointer-events", "none");
+}
+
+// mouseOut removes the tooltip and updates the svg accordingly using the passed
+// in parameters
+function mouseOut(d, div, pop_map_func, xMap, yMap) {
+    div.transition()
+            .duration(500)
+            .style("opacity", 0);
+          svgContainer.selectAll("circle")
+            .transition()
+            .attr("cx", (xMap))
+            .attr("cy", (yMap))
+            .attr("pointer-events", "any")
+            .attr('r', (d) => pop_map_func(d["pop_mlns"]));
+}
 })();
