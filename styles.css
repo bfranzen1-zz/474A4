@@ -16,7 +16,7 @@ path {
 div.tooltip {
     position: absolute;
     text-align: left;
-    width: 150px;
+    width: 180px;
     height: 80px;
     padding: 2px;
     font: 13.5px sans-serif;
@@ -32,9 +32,10 @@ div.tooltip {
     text-align: left;
 }
 
-div.tooltip > p {
+div.tooltip > span {
     display: inline;
     color: black;
+    float: right;
 }
 
 div.year {

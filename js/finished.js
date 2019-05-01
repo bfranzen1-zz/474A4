@@ -110,11 +110,11 @@
           div.transition()
             .duration(200)
             .style("opacity", 1);
-          div.html("Country Name: " + "<p>" + getKey(d.location) + "</p>" + 
-                   "<br/>" + "Year: " + "<p>" + d.time + "</p>" +
-                   "<br/>" + "Life Expectancy: " + "<p>" + d.life_expectancy + "</p>" + 
-                   "<br/>" + "Fertility Rate: " + "<p>" + d.fertility_rate + "</p>" +    
-                   "<br/>" + "Population: " + "<p>" + numberWithCommas(d["pop_mlns"]*1000000 + "</p>" 
+          div.html("Country Name: " + "<span>" + getKey(d.location) + "</span>" + 
+                   "<br/>" + "Year: " + "<span>" + d.time + "</span>" +
+                   "<br/>" + "Life Expectancy: " + "<span>" + d.life_expectancy + "</span>" + 
+                   "<br/>" + "Fertility Rate: " + "<span>" + d.fertility_rate + "</span>" +    
+                   "<br/>" + "Population: " + "<span>" + numberWithCommas(d["pop_mlns"]*1000000 + "</span>" 
                    ))
             .style("left", (d3.event.pageX) + "px")
             .style("top", (d3.event.pageY - 28) + "px");
