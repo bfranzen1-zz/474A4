@@ -2,129 +2,248 @@
 
 (function() {
 
-  let data = ""; // keep data in global scope
+  let data = "no data";
   let svgContainer = ""; // keep SVG reference in global scope
-  let width = 1400;
-  let height = 700;
+  let currData = "" // to store current year selection
+  let ccodes = ""
 
   // load data and make scatter plot after window loads
   window.onload = function() {
     svgContainer = d3.select('body')
       .append('svg')
-      .attr('width', width)
-      .attr('height', height);
+      .attr('width', 800)
+      .attr('height', 500);
+    
+    // load country codes for tooltip
+    d3.json("./ccodes.json")
+      .then((data) => {
+          ccodes = data
+      });
+
     // d3.csv is basically fetch but it can be be passed a csv file as a parameter
-    d3.csv("data/Admission_Predict.csv")
-      .then((csvData) => makeHistogram(csvData));
+    d3.csv("./data/DataPy.csv")
+      .then((data) => makeScatterPlot(data, 1960));
+    
   }
 
+  // make scatter plot with trend line
+  function makeScatterPlot(csvData, year) {  
+    data = csvData // assign data as global variable
+      
+    // only get data of passed in year
+    filterByYear(year)
+    // get arrays of fertility rate data and life Expectancy data
+    let fertility_rate_data = data.map((row) => parseFloat(row["fertility_rate"]));
+    let life_expectancy_data = data.map((row) => parseFloat(row["life_expectancy"]));
 
-    function makeHistogram(csvData) {
-        data = csvData;
+    // find data limits
+    let axesLimits = findMinMax(fertility_rate_data, life_expectancy_data);
 
-        // get TOEFL Scores
-        let toeflScores = data.map((row) => parseInt(row["TOEFL Score"]))
+    // draw axes and return scaling + mapping functions
+    let mapFunctions = drawAxes(axesLimits, "fertility_rate", "life_expectancy");
 
-        // get min/max of TOEFL scores
-        let limits = MinMaxOf(toeflScores);
+    // plot data as points and add tooltip functionality
+    plotData(mapFunctions, year);
 
-        let axes = makeAxes(limits);
-        
-        var hist = d3.histogram()
-            .value((d) => d)
-            .domain(axes.xScale.domain()) // domain to use for x-axis
-            .thresholds(15); // number of x-axis ticks
+    // draw title and axes labels
+    makeLabels();
+  }
 
-        var bins = hist(toeflScores);
-        axes.yScale.domain([(d3.max(bins, function(d) {return d.length;})) + 10, 0]); // re-scale to leave room at top of graph
+  // make title and axes labels
+  function makeLabels() {
+    svgContainer.append('text')
+      .attr('x', 100)
+      .attr('y', 40)
+      .style('font-size', '14pt')
+      .text("Country Life Expectancy vs Fertility Rate by Year");
 
-        // append the bar rectangles to the svg element
-        svgContainer.selectAll("rect")
-            .data(bins)
-            .enter()
-            .append("rect")
-                .attr("class", "bar")
-                // re-position bars to fit axes
-                .attr("x", 50)
-                .attr("y", 0)
-                .attr("transform", function(d) {
-                    return "translate(" + axes.xScale(d.x0) + "," + axes.yScale(d.length) + ")"; })
-                .attr("width", function(d) { return axes.xScale(d.x1) - axes.xScale(d.x0) -1 ; })
-                .attr("height", function(d) { return height - axes.yScale(d.length) - 100; });
+    svgContainer.append('text')
+      .attr('x', 130)
+      .attr('y', 490)
+      .style('font-size', '10pt')
+      .text('Fertility Rates (Avg Children per Woman)');
 
-        // append x-axis
-        svgContainer.append("g")
-            .attr('transform', 'translate(50, 600)')
-            .attr("class", "x axis")
-            .call(axes.x);
-        
-        // append y-axis
-        svgContainer.append("g")
-            .attr('transform', 'translate(100, 0)')
-            .call(axes.y);
+    svgContainer.append('text')
+      .attr('transform', 'translate(15, 300)rotate(-90)')
+      .style('font-size', '10pt')
+      .text('Life Expectancy (years)');
+  }
 
-        // text label for the x axis
-        svgContainer.append("text")   
-            .attr("y", height - 25)
-            .attr("x", width / 2)
-            .style("text-anchor", "middle")
-            .style("font-family", "Tableau Light, Tableau, Arial, sans-serif")
-            .text("TOEFL Score(bin)");
-        
-        // text label for the y axis
-        svgContainer.append("text")
-            .attr("transform", "rotate(-90)")
-            .attr("y", 50)
-            .attr("x", - (height / 2))
-            .style("text-anchor", "middle")
-            .style("font-family", "Tableau Light, Tableau, Arial, sans-serif")
-            .text("Count of TOEFL Score"); 
+  // plot all the data points on the SVG
+  // and add tooltip functionality
+  function plotData(map) {
+    // get population data as array
+    let pop_data = data.map((row) => +row["pop_mlns"]);
+    let pop_limits = d3.extent(pop_data);
+    
+    // need locations for dropdown
+    let years =  data.map((row) => row["time"]);
+    
+    // get unique locations
+    let uniq_yrs = [... new Set(years)];
 
-        // text label for the title
-        svgContainer.append("text")
-            .attr("y", 25)
-            .attr("x", width / 2)
-            .style("text-anchor", "middle")
-            .style("font-size", "25px")
-            .style("font-family", "Tableau Light, Tableau, Arial, sans-serif")
-            .text("TOEFL Score Distribution"); 
-    }
+    // make size scaling function for population
+    let pop_map_func = d3.scaleLinear()
+      .domain([pop_limits[0], pop_limits[1]])
+      .range([3, 20]);
 
-  // MinMaxOf returns the rounded min and max value of the input data 
-  function MinMaxOf(data) {
-    // get min/max gre scores
-    let min = d3.min(data);
-    let max = d3.max(data);
+    // mapping functions
+    let xMap = map.x;
+    let yMap = map.y;
+
+    // make tooltip
+    let div = d3.select("body").append("div")
+    .attr("class", "tooltip")
+    .style("opacity", 0);
+
+    // append data to SVG and plot as points
+    svgContainer.selectAll('.dot')
+      .data(currData)
+      .enter()
+      .append('circle')
+        .attr('cx', xMap)
+        .attr('cy', yMap)
+        .attr('r', (d) => pop_map_func(d["pop_mlns"]))
+        .attr('fill', "#4286f4")
+        // add tooltip functionality to points
+        .on("mouseover", (d) => {
+          div.transition()
+            .duration(200)
+            .style("opacity", 1);
+          div.html("Country Name: " + "<p>" + getKey(d.location) + "</p>" + 
+                   "<br/>" + "Year: " + "<p>" + d.time + "</p>" +
+                   "<br/>" + "Life Expectancy: " + "<p>" + d.life_expectancy + "</p>" + 
+                   "<br/>" + "Fertility Rate: " + "<p>" + d.fertility_rate + "</p>" +    
+                   "<br/>" + "Population: " + "<p>" + numberWithCommas(d["pop_mlns"]*1000000 + "</p>" 
+                   ))
+            .style("left", (d3.event.pageX) + "px")
+            .style("top", (d3.event.pageY - 28) + "px");
+          svgContainer.selectAll("circle")
+            .transition()
+            .filter((n) => n.location != d.location)
+            .attr("r", pop_map_func(d["pop_mlns"]))
+            .attr("cx", (xMap(d)))
+            .attr("cy", (yMap(d)))
+            .attr("pointer-events", "none");
+        })
+        .on("mouseout", (d) => {
+          div.transition()
+            .duration(500)
+            .style("opacity", 0);
+          svgContainer.selectAll("circle")
+            .transition()
+            .attr("cx", (xMap))
+            .attr("cy", (yMap))
+            .attr("pointer-events", "any")
+            .attr('r', (d) => pop_map_func(d["pop_mlns"]));
+        });
+    var dropdown = d3.select("#drop")
+        .insert("select", "svg")
+        .on("change", function() {
+            let val = d3.select(this).property("value")
+            // update data and change position of plotted points
+            filterByYear(val)
+            svgContainer.selectAll("circle")
+                .data(currData)
+                .transition()
+                .duration(400)
+                .attr('r', (d) => pop_map_func(d["pop_mlns"]))
+                .attr("cx", xMap)
+                .attr("cy", yMap);
+        });
+    dropdown.selectAll("option")
+        .data(uniq_yrs)
+        .enter()
+        .append("option")
+            .attr("value", (d) => d)
+            .text(function (d) {
+                return d; // capitalize 1st letter
+            });        
+  }
+
+  // draw the axes and ticks
+  function drawAxes(limits, x, y) {
+    // return x value from a row of data
+    let xValue = function(d) { return +d[x]; }
+
+    // function to scale x value
+    let xScale = d3.scaleLinear()
+      .domain([limits.xMin - 0.5, limits.xMax + 0.5]) // give domain buffer room
+      .range([50, 450]);
+
+    // xMap returns a scaled x value from a row of data
+    let xMap = function(d) { return xScale(xValue(d)); };
+
+    // plot x-axis at bottom of SVG
+    let xAxis = d3.axisBottom().scale(xScale);
+    svgContainer.append("g")
+      .attr('transform', 'translate(0, 450)')
+      .call(xAxis);
+
+    // return y value from a row of data
+    let yValue = function(d) { return +d[y]}
+
+    // function to scale y
+    let yScale = d3.scaleLinear()
+      .domain([limits.yMax + 5, limits.yMin - 5]) // give domain buffer
+      .range([50, 450]);
+
+    // yMap returns a scaled y value from a row of data
+    let yMap = function (d) { return yScale(yValue(d)); };
+
+    // plot y-axis at the left of SVG
+    let yAxis = d3.axisLeft().scale(yScale);
+    svgContainer.append('g')
+      .attr('transform', 'translate(50, 0)')
+      .call(yAxis);
+
+    // return mapping and scaling functions
+    return {
+      x: xMap,
+      y: yMap,
+      xScale: xScale,
+      yScale: yScale
+    };
+  }
+
+  // find min and max for arrays of x and y
+  function findMinMax(x, y) {
+
+    // get min/max x values
+    let xMin = d3.min(x);
+    let xMax = d3.max(x);
+
+    // get min/max y values
+    let yMin = d3.min(y);
+    let yMax = d3.max(y);
 
     // return formatted min/max data as an object
     return {
-      min : min,
-      max : max
+      xMin : xMin,
+      xMax : xMax,
+      yMin : yMin,
+      yMax : yMax
     }
   }
 
-  function makeAxes(limits) {
-    let xScale = d3.scaleLinear()
-        .domain([limits.min - 2, limits.max + 5]) // give domain buffer room
-        .range([50, 1250]);
+  // format numbers
+  function numberWithCommas(x) {
+    return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  }
 
-    let yScale = d3.scaleLinear()
-        .domain([100, 0])
-        .range([50, 600]);
+  // filters the data based on the passed in year, and sets the currData to the result
+  function filterByYear(year) {
+      currData = data.filter((row) => row["time"] == year);
+  }
 
-    var x = d3.axisBottom()
-        .scale(xScale).ticks(20);
-
-    var y = d3.axisLeft()
-        .scale(yScale)
-        .ticks(10);
-    
-    return {
-        xScale : xScale,
-        yScale : yScale,
-        x : x,
-        y : y
-    }
+  // takes in 3-letter country code and returns the country name if found
+  function getKey(code) {
+      for (var k in ccodes) {
+          if (ccodes[k] === code) {
+            return k;
+          }
+      }
+      return null;
   }
 
 })();

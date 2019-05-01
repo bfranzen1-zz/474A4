@@ -1,0 +1,55 @@
+body { font: 12px Arial;}
+
+path {
+    stroke-width: 2;
+    fill: none;
+}
+
+.axis path,
+.axis line {
+    fill: none;
+    stroke: grey;
+    stroke-width: 1;
+    shape-rendering: crispEdges;
+}
+
+div.tooltip {
+    position: absolute;
+    text-align: left;
+    width: 150px;
+    height: 80px;
+    padding: 2px;
+    font: 13.5px sans-serif;
+    background: #F8F8F8;
+    border: 1px;
+    border-style: solid;
+    border-color: #888888;
+    box-shadow: 2px 2px #888888;
+    border-radius: 2px;
+    pointer-events: none;
+    padding: 8px 5px;
+    color: rgb(161, 159, 159);
+    text-align: left;
+}
+
+div.tooltip > p {
+    display: inline;
+    color: black;
+}
+
+div.year {
+    position: absolute;
+    font: 30px sans-serif;
+}
+
+.avoid-hover {
+    pointer-events : none;
+}
+
+#drop {
+    position: absolute;
+    left: 6%;
+    top: 55%;
+    font: 14px sans-serif;
+    height: 100px;
+}
