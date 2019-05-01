@@ -11,7 +11,7 @@
   window.onload = function() {
     svgContainer = d3.select('body')
       .append('svg')
-      .attr('width', 800)
+      .attr('width', 500)
       .attr('height', 500);
     
     // load country codes for tooltip
@@ -52,7 +52,7 @@
   // make title and axes labels
   function makeLabels() {
     svgContainer.append('text')
-      .attr('x', 100)
+      .attr('x', 75)
       .attr('y', 40)
       .style('font-size', '14pt')
       .text("Country Life Expectancy vs Fertility Rate by Year");
